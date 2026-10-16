@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "法语助手 · 法英词典侧栏",
+  "version": "1.0.0",
+  "description": "在法语助手背单词时，侧栏自动显示当前法语词的英文释义。",
+  "minimum_chrome_version": "116",
+  "permissions": ["sidePanel"],
+  "host_permissions": ["https://en.wiktionary.org/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.frdic.com/areas/recite/fr/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "panel.html" },
+  "action": { "default_title": "打开法英词典侧栏" }
+}

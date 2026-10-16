@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>法英词典</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header><strong>FR → EN</strong><span>随单词自动更新</span></header>
+  <main>
+    <section class="word-card" aria-live="polite">
+      <div class="card-top">
+        <span id="mode" class="badge">自动识别</span>
+        <a id="source" href="#" target="_blank" rel="noopener noreferrer" hidden>词条 ↗</a>
+      </div>
+      <div class="word-meta">
+        <h2 id="word">等待单词…</h2>
+        <span id="pronunciation" class="pronunciation" hidden></span>
+      </div>
+      <div id="status" class="status">打开法语助手的背词页面即可开始。</div>
+      <div id="definitions"></div>
+    </section>
+    <details class="lookup">
+      <summary>手动查词</summary>
+      <form id="lookup-form" class="lookup-form">
+        <div class="lookup-row">
+          <input id="manual-word" type="text" maxlength="80" autocomplete="off" spellcheck="false" aria-label="输入法语单词" placeholder="输入法语单词">
+          <button type="submit">查询</button>
+        </div>
+      </form>
+    </details>
+    <p class="credit">释义来源：<a href="https://en.wiktionary.org/" target="_blank" rel="noopener noreferrer">英文维基词典</a> · CC BY-SA</p>
+  </main>
+  <script src="panel.js"></script>
+</body>
+</html>
