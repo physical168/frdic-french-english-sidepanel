@@ -3,8 +3,20 @@
   window.__frdicEnglishDictionaryInstalled = true;
 
   let currentWord = null;
-  let currentRoute = location.hash;
   let timer = null;
+  let poller = null;
+  let observer = null;
+  let active = true;
+
+  function stop() {
+    if (!active) return;
+    active = false;
+    if (timer !== null) clearTimeout(timer);
+    if (poller !== null) clearInterval(poller);
+    observer?.disconnect();
+    window.removeEventListener("hashchange", scheduleScan);
+    window.__frdicEnglishDictionaryInstalled = false;
+  }
 
   function visible(element) {
     if (!element || !element.isConnected) return false;
@@ -59,14 +71,24 @@
   }
 
   function scan() {
+    if (!active) return;
     timer = null;
     const word = findWord();
     if (word === currentWord) return;
     currentWord = word;
-    chrome.runtime.sendMessage({ type: "FRDIC_WORD_CHANGED", word }).catch(() => {});
+    try {
+      const request = chrome.runtime.sendMessage({ type: "FRDIC_WORD_CHANGED", word });
+      request?.catch(error => {
+        if (/Extension context invalidated/i.test(error?.message || "")) stop();
+      });
+    } catch (_error) {
+      // An unpacked extension can be reloaded while this old script remains in the page.
+      stop();
+    }
   }
 
   function scheduleScan() {
+    if (!active) return;
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(scan, 120);
   }
@@ -77,7 +99,7 @@
     }
   });
 
-  const observer = new MutationObserver(scheduleScan);
+  observer = new MutationObserver(scheduleScan);
   observer.observe(document.documentElement, {
     subtree: true,
     childList: true,
@@ -87,11 +109,6 @@
   });
 
   window.addEventListener("hashchange", scheduleScan);
-  setInterval(() => {
-    if (location.hash !== currentRoute) {
-      currentRoute = location.hash;
-    }
-    scan();
-  }, 750);
+  poller = setInterval(scan, 750);
   scan();
 })();

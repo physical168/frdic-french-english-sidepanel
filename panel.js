@@ -183,6 +183,7 @@ async function syncActiveTab() {
     await showWord(response?.word ?? null);
   } catch (_error) {
     await showWord(null);
+    statusElement.textContent = "未连接到背词页面。若刚重新加载扩展，请刷新背词网页。";
   }
 }
 

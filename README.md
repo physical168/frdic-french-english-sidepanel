@@ -19,6 +19,7 @@ A small Chrome/Edge extension that shows English definitions for the current Fre
 5. Open the French Assistant vocabulary study page and click the extension icon to open the side panel.
 
 If the extension was already loaded, click **Reload** on its card in the extensions page after updating these files.
+Then refresh any French Assistant study tab that was already open so the new content script can attach to it.
 
 ## How it works
 
