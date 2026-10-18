@@ -5,6 +5,7 @@ const definitionsElement = document.getElementById("definitions");
 const sourceElement = document.getElementById("source");
 const modeElement = document.getElementById("mode");
 const manualInput = document.getElementById("manual-word");
+const retryButton = document.getElementById("retry");
 
 const cache = new Map();
 const partNames = new Set([
@@ -83,17 +84,85 @@ function parseEntry(html) {
   return { pronunciation, groups, lemma: formOnly ? lemma : null };
 }
 
+function parsePageEntry(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const frenchHeading = doc.querySelector("#mw-content-text h2#French");
+  const frenchBlock = frenchHeading?.closest(".mw-heading2");
+  if (!frenchBlock) return null;
+
+  const groups = [];
+  let pronunciation = null;
+  let lemma = null;
+  let section = "";
+  for (let node = frenchBlock.nextElementSibling; node; node = node.nextElementSibling) {
+    if (node.matches(".mw-heading2")) break;
+    const heading = node.matches(".mw-heading") ? node.querySelector("h3, h4, h5") : null;
+    if (heading) {
+      section = heading.textContent.trim();
+      continue;
+    }
+    if (section === "Pronunciation" && !pronunciation) {
+      const match = node.textContent.match(/\/[^/\n]{2,80}\//);
+      if (match) pronunciation = match[0];
+    }
+    if (!partNames.has(section) || node.tagName !== "OL") continue;
+    const definitions = [...node.children]
+      .filter(item => item.tagName === "LI")
+      .map(item => {
+        const text = definitionText(item);
+        if (!lemma && /(?:participle|inflection|plural|singular|feminine|masculine|form) of\b/i.test(text)) {
+          const links = [...item.querySelectorAll('a[href$="#French"]')];
+          const candidate = links.at(-1)?.textContent.trim();
+          if (cleanWord(candidate)) lemma = candidate;
+        }
+        return text;
+      })
+      .filter(Boolean)
+      .slice(0, 5);
+    if (definitions.length) groups.push({ part: section, definitions });
+    section = "";
+    if (groups.length >= 5) break;
+  }
+  const allDefinitions = groups.flatMap(group => group.definitions);
+  const formOnly = allDefinitions.length > 0 && allDefinitions.every(text =>
+    /(?:participle|inflection|plural|singular|feminine|masculine|form) of\b/i.test(text)
+  );
+  return { pronunciation, groups, lemma: formOnly ? lemma : null };
+}
+
 async function lookup(word, followForms = true) {
   const key = word.toLocaleLowerCase("fr");
   if (cache.has(key)) return cache.get(key);
-  const url = `https://en.wiktionary.org/w/rest.php/v1/page/${encodeURIComponent(word)}/html`;
-  const response = await fetch(url, { headers: { Accept: "text/html" } });
-  if (response.status === 404) {
-    cache.set(key, null);
-    return null;
+  const title = encodeURIComponent(word);
+  const sources = [
+    { name: "词条网页", url: `https://en.wiktionary.org/wiki/${title}`, parse: parsePageEntry },
+    { name: "词典接口", url: `https://en.wiktionary.org/w/rest.php/v1/page/${title}/html`, parse: parseEntry }
+  ];
+  let entry = null;
+  let missing = false;
+  const errors = [];
+  for (const source of sources) {
+    try {
+      const response = await fetch(source.url);
+      if (response.status === 404) {
+        missing = true;
+        continue;
+      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      entry = source.parse(await response.text());
+      if (entry?.groups.length) break;
+      missing = true;
+    } catch (error) {
+      errors.push(`${source.name}: ${error?.message || String(error)}`);
+    }
   }
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const entry = parseEntry(await response.text());
+  if (!entry?.groups.length) {
+    if (missing) {
+      cache.set(key, null);
+      return null;
+    }
+    throw new Error(errors.join("；") || "没有可用的词典来源");
+  }
   if (followForms && entry?.lemma && entry.lemma.toLocaleLowerCase("fr") !== key) {
     try {
       entry.base = { word: entry.lemma, entry: await lookup(entry.lemma, false) };
@@ -107,6 +176,7 @@ async function lookup(word, followForms = true) {
 
 function renderEntry(entry) {
   definitionsElement.replaceChildren();
+  retryButton.hidden = true;
   if (!entry?.groups.length) {
     statusElement.hidden = false;
     statusElement.textContent = "英文维基词典没有找到这个词的法语英文释义。可打开原词条查看其他词形。";
@@ -139,7 +209,7 @@ function renderEntry(entry) {
   }
 }
 
-async function showWord(value, mode = "自动识别") {
+async function showWord(value, mode = "自动识别", force = false) {
   const word = cleanWord(value);
   if (!word) {
     currentWord = null;
@@ -149,11 +219,12 @@ async function showWord(value, mode = "自动识别") {
     sourceElement.hidden = true;
     pronunciationElement.hidden = true;
     definitionsElement.replaceChildren();
+    retryButton.hidden = true;
     statusElement.hidden = false;
     statusElement.textContent = "打开法语助手的背词页面即可开始。";
     return;
   }
-  if (word === currentWord && mode === modeElement.textContent) return;
+  if (!force && word === currentWord && mode === modeElement.textContent) return;
   currentWord = word;
   const thisRequest = ++requestNumber;
   modeElement.textContent = mode;
@@ -162,15 +233,17 @@ async function showWord(value, mode = "自动识别") {
   sourceElement.hidden = false;
   pronunciationElement.hidden = true;
   definitionsElement.replaceChildren();
+  retryButton.hidden = true;
   statusElement.hidden = false;
   statusElement.textContent = "正在查找英文释义…";
 
   try {
     const entry = await lookup(word);
     if (thisRequest === requestNumber) renderEntry(entry);
-  } catch (_error) {
+  } catch (error) {
     if (thisRequest !== requestNumber) return;
-    statusElement.textContent = "词典暂时无法连接。请检查网络后重新查询。";
+    statusElement.textContent = `词典查询失败：${(error?.message || String(error)).slice(0, 180)}`;
+    retryButton.hidden = false;
   }
 }
 
@@ -207,4 +280,5 @@ document.getElementById("lookup-form").addEventListener("submit", event => {
   showWord(word, "手动查询");
 });
 manualInput.addEventListener("input", () => manualInput.setCustomValidity(""));
+retryButton.addEventListener("click", () => showWord(currentWord, modeElement.textContent, true));
 syncActiveTab();

@@ -27,6 +27,8 @@ On the `#/exam` route, the content script reads the visible study card. When tha
 
 The extension does not read or send the French Assistant login token. Dictionary requests send only the word being looked up to `en.wiktionary.org`. An internet connection is required. Some rare or inflected forms may have incomplete entries; use the **Entry** link in the panel to inspect the source page.
 
+The panel reads the regular Wiktionary entry page first and falls back to its REST endpoint. If both requests fail, it shows the error and a **Retry** button.
+
 ## Permissions and attribution
 
 - Page access: `https://www.frdic.com/areas/recite/fr/*`, to detect the current study word.
