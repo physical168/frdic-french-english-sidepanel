@@ -6,7 +6,7 @@ const sourceElement = document.getElementById("source");
 const modeElement = document.getElementById("mode");
 const manualInput = document.getElementById("manual-word");
 const retryButton = document.getElementById("retry");
-const speech = window.speechSynthesis;
+const speechStatusElement = document.getElementById("speech-status");
 
 const cache = new Map();
 const partNames = new Set([
@@ -17,6 +17,70 @@ const partNames = new Set([
 let activeTabId = null;
 let currentWord = null;
 let requestNumber = 0;
+let playbackNumber = 0;
+let speakingButton = null;
+let speechTimer = null;
+
+function resetSpeechButton(button) {
+  if (!button) return;
+  button.classList.remove("is-playing");
+  button.textContent = "▶ 听发音";
+  button.setAttribute("aria-label", `朗读英语释义：${button.dataset.definition}`);
+}
+
+function stopSpeech() {
+  playbackNumber++;
+  if (speechTimer !== null) clearTimeout(speechTimer);
+  speechTimer = null;
+  resetSpeechButton(speakingButton);
+  speakingButton = null;
+  chrome.tts?.stop();
+}
+
+function speakDefinition(definition, button) {
+  stopSpeech();
+  speechStatusElement.hidden = true;
+  if (!chrome.tts?.speak) {
+    speechStatusElement.textContent = "当前浏览器无法使用扩展语音功能。";
+    speechStatusElement.hidden = false;
+    return;
+  }
+
+  const playback = playbackNumber;
+  speakingButton = button;
+  button.classList.add("is-playing");
+  button.textContent = "正在播放…";
+  button.setAttribute("aria-label", `正在朗读：${definition}`);
+
+  function finish(error) {
+    if (playback !== playbackNumber) return;
+    if (speechTimer !== null) clearTimeout(speechTimer);
+    speechTimer = null;
+    resetSpeechButton(button);
+    speakingButton = null;
+    if (error) {
+      speechStatusElement.textContent = `播放失败：${error}`;
+      speechStatusElement.hidden = false;
+    }
+  }
+
+  speechTimer = setTimeout(() => finish(), 20000);
+  try {
+    const request = chrome.tts.speak(definition, {
+      lang: "en-US",
+      rate: 0.9,
+      volume: 1,
+      enqueue: false,
+      onEvent(event) {
+        if (event.type === "error") finish(event.errorMessage || "请检查系统英语语音和音量设置");
+        if (["end", "interrupted", "cancelled"].includes(event.type)) finish();
+      }
+    });
+    request?.catch(error => finish(error?.message || String(error)));
+  } catch (error) {
+    finish(error?.message || String(error));
+  }
+}
 
 function cleanWord(value) {
   const word = (value || "").replace(/\s+/g, " ").trim();
@@ -176,6 +240,8 @@ async function lookup(word, followForms = true) {
 }
 
 function renderEntry(entry) {
+  stopSpeech();
+  speechStatusElement.hidden = true;
   definitionsElement.replaceChildren();
   retryButton.hidden = true;
   if (!entry?.groups.length) {
@@ -199,22 +265,13 @@ function renderEntry(entry) {
       const text = document.createElement("span");
       text.textContent = definition;
       item.append(text);
-      if (speech) {
-        const play = document.createElement("button");
-        play.className = "speak";
-        play.type = "button";
-        play.textContent = "🔊";
-        play.title = "朗读英语释义";
-        play.setAttribute("aria-label", `朗读英语释义：${definition}`);
-        play.addEventListener("click", () => {
-          speech.cancel();
-          const utterance = new SpeechSynthesisUtterance(definition);
-          utterance.lang = "en-US";
-          utterance.rate = 0.9;
-          speech.speak(utterance);
-        });
-        item.append(play);
-      }
+      const play = document.createElement("button");
+      play.className = "speak";
+      play.type = "button";
+      play.dataset.definition = definition;
+      resetSpeechButton(play);
+      play.addEventListener("click", () => speakDefinition(definition, play));
+      item.append(play);
       list.append(item);
     }
     part.append(heading, list);
@@ -231,6 +288,8 @@ function renderEntry(entry) {
 async function showWord(value, mode = "自动识别", force = false) {
   const word = cleanWord(value);
   if (!word) {
+    stopSpeech();
+    speechStatusElement.hidden = true;
     currentWord = null;
     requestNumber++;
     wordElement.textContent = "等待单词…";
@@ -244,6 +303,8 @@ async function showWord(value, mode = "自动识别", force = false) {
     return;
   }
   if (!force && word === currentWord && mode === modeElement.textContent) return;
+  stopSpeech();
+  speechStatusElement.hidden = true;
   currentWord = word;
   const thisRequest = ++requestNumber;
   modeElement.textContent = mode;
