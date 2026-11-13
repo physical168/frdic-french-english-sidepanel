@@ -25,6 +25,8 @@ a:hover { text-decoration: underline; }
 .part li:first-child { font-size: 23px; font-weight: 650; }
 .part li + li { padding-top: 13px; border-top: 1px solid #f0f2f4; }
 .part li + li::before { top: 16px; }
+.speak { display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; padding: 3px 5px; border: 0; border-radius: 5px; background: transparent; color: #6486a8; font-size: 14px; line-height: 1; vertical-align: middle; cursor: pointer; }
+.speak:hover, .speak:focus-visible { background: #edf4fb; outline-color: #6486a8; }
 .lookup { margin-top: 30px; border-top: 1px solid #edf0f3; padding-top: 12px; }
 .lookup summary { color: #8290a0; font-size: 12px; cursor: pointer; }
 .lookup-form { padding-top: 12px; }

@@ -6,6 +6,7 @@ const sourceElement = document.getElementById("source");
 const modeElement = document.getElementById("mode");
 const manualInput = document.getElementById("manual-word");
 const retryButton = document.getElementById("retry");
+const speech = window.speechSynthesis;
 
 const cache = new Map();
 const partNames = new Set([
@@ -195,7 +196,25 @@ function renderEntry(entry) {
     const list = document.createElement("ol");
     for (const definition of group.definitions) {
       const item = document.createElement("li");
-      item.textContent = definition;
+      const text = document.createElement("span");
+      text.textContent = definition;
+      item.append(text);
+      if (speech) {
+        const play = document.createElement("button");
+        play.className = "speak";
+        play.type = "button";
+        play.textContent = "🔊";
+        play.title = "朗读英语释义";
+        play.setAttribute("aria-label", `朗读英语释义：${definition}`);
+        play.addEventListener("click", () => {
+          speech.cancel();
+          const utterance = new SpeechSynthesisUtterance(definition);
+          utterance.lang = "en-US";
+          utterance.rate = 0.9;
+          speech.speak(utterance);
+        });
+        item.append(play);
+      }
       list.append(item);
     }
     part.append(heading, list);

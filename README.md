@@ -4,9 +4,10 @@ A small Chrome/Edge extension that shows English definitions for the current Fre
 
 ## Features
 
-- Detects the current word on the study card or in the built-in dictionary column.
+- Detects the current word on both older and newer study cards or in the built-in dictionary column.
 - Updates the English definitions as you move to another word.
 - Shows definitions from the French entry on English Wiktionary, with part of speech and pronunciation when available.
+- Plays each English definition aloud with the browser's English speech voice.
 - Follows an inflected form to its base entry when the form has no standalone definition.
 - Includes an optional manual lookup field.
 
@@ -23,7 +24,7 @@ Then refresh any French Assistant study tab that was already open so the new con
 
 ## How it works
 
-On the `#/exam` route, the content script reads the visible study card. When that card is hidden, it reads the current word from the built-in dictionary column's iframe URL. The side panel requests the corresponding French entry from English Wiktionary and displays its English definitions.
+On French Assistant's vocabulary study page, the content script reads the visible study card, a headline-sized word, or the built-in dictionary column's iframe URL. The side panel requests the corresponding French entry from English Wiktionary and displays its English definitions. The speaker beside each definition uses the browser's speech synthesis; the available voice depends on the browser and operating system.
 
 The extension does not read or send the French Assistant login token. Dictionary requests send only the word being looked up to `en.wiktionary.org`. An internet connection is required. Some rare or inflected forms may have incomplete entries; use the **Entry** link in the panel to inspect the source page.
 
@@ -31,7 +32,7 @@ The panel reads the regular Wiktionary entry page first and falls back to its RE
 
 ## Permissions and attribution
 
-- Page access: `https://www.frdic.com/areas/recite/fr/*`, to detect the current study word.
+- Page access: `https://www.frdic.com/areas/recite/*`, to detect the current study word.
 - Network access: `https://en.wiktionary.org/*`, to retrieve dictionary entries.
 - `sidePanel`: to show definitions beside the study page.
 

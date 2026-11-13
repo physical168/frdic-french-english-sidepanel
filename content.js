@@ -28,13 +28,11 @@
   function cleanWord(value) {
     const word = (value || "").replace(/\s+/g, " ").trim();
     if (!word || word.length > 80) return null;
-    if (!/^[\p{L}\p{M}'’\-\s]+$/u.test(word)) return null;
+    if (!/^[\p{Script=Latin}\p{M}'’\-\s]+$/u.test(word)) return null;
     return word;
   }
 
   function findWord() {
-    if (!location.hash.startsWith("#/exam")) return null;
-
     for (const element of document.querySelectorAll(".card-question")) {
       if (visible(element)) {
         const word = cleanWord(element.textContent);
@@ -42,30 +40,38 @@
       }
     }
 
-    // 答题卡隐藏后，法语助手仍在中间的词典 iframe 地址里保留当前词。
-    for (const frame of document.querySelectorAll("iframe.explain-frame")) {
+    // The newer study UI uses a large word in the card without .card-question.
+    // Look for isolated Latin text with headline-sized type in the study area.
+    const candidates = [];
+    for (const element of document.querySelectorAll("h1, h2, h3, div, span, p, strong")) {
+      if (element.closest("nav, button, [role='button'], [aria-hidden='true']")) continue;
+      const word = cleanWord(element.textContent);
+      if (!word || !visible(element)) continue;
+      if ([...element.children].some(child => cleanWord(child.textContent) === word)) continue;
+      const rect = element.getBoundingClientRect();
+      if (rect.top < 35 || rect.top > window.innerHeight * 0.72 || rect.left >= window.innerWidth * 0.98) continue;
+      const fontSize = parseFloat(getComputedStyle(element).fontSize);
+      if (fontSize < 28) continue;
+      const inCard = rect.left < window.innerWidth * 0.68 && rect.top > 100;
+      const inDictionaryHeader = rect.left >= window.innerWidth * 0.35 && rect.top < 260;
+      if (!inCard && !inDictionaryHeader) continue;
+      candidates.push({ word, score: fontSize + (inCard ? 20 : 0) + (element.matches("h1, h2") ? 4 : 0) });
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    if (candidates.length) return candidates[0].word;
+
+    // Some layouts keep the current word only in the built-in dictionary URL.
+    for (const frame of document.querySelectorAll("iframe")) {
       if (!visible(frame)) continue;
       try {
         const url = new URL(frame.getAttribute("src") || "", location.href);
         if (!/(^|\.)frdic\.com$/i.test(url.hostname)) continue;
-        if (url.pathname.toLowerCase() !== "/dicts/minidictsearch2") continue;
+        if (!/\/dicts\/mini.*search/i.test(url.pathname)) continue;
         const word = cleanWord(url.searchParams.get("word"));
         if (word) return word;
       } catch (_error) {
-        // 正在切换卡片时，iframe 地址可能暂时为空。
+        // The iframe URL may be empty while the card changes.
       }
-    }
-
-    // 兼容法语助手在显示答案后把单词移入右侧词典的布局。
-    const candidates = [...document.querySelectorAll("h1, h2, .word-title, .word-head")]
-      .filter(visible)
-      .filter(element => {
-        const rect = element.getBoundingClientRect();
-        return rect.top < 260 && rect.left > window.innerWidth * 0.35;
-      });
-    for (const element of candidates) {
-      const word = cleanWord(element.textContent);
-      if (word) return word;
     }
     return null;
   }
